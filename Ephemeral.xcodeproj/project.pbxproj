@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F3127A3E2E82D00500F9FB0F /* README in Resources */ = {isa = PBXBuildFile; fileRef = F3127A3D2E82D00000F9FB0F /* README */; };
 		F3CF066E2E81933500F655C4 /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = F3CF066D2E81933500F655C4 /* RealityKitContent */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F3127A3D2E82D00000F9FB0F /* README */ = {isa = PBXFileReference; lastKnownFileType = text; path = README; sourceTree = "<group>"; };
 		F3CF06682E81933500F655C4 /* Ephemeral.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ephemeral.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F3CF066C2E81933500F655C4 /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -51,6 +53,7 @@
 		F3CF065F2E81933500F655C4 = {
 			isa = PBXGroup;
 			children = (
+				F3127A3D2E82D00000F9FB0F /* README */,
 				F3CF066A2E81933500F655C4 /* Ephemeral */,
 				F3CF066B2E81933500F655C4 /* Packages */,
 				F3CF06692E81933500F655C4 /* Products */,
@@ -138,6 +141,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F3127A3E2E82D00500F9FB0F /* README in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
