@@ -1,10 +1,3 @@
-//
-//  README.md
-//  Ephemeral
-//
-//  Created by Federica Ziaco on 23/09/25.
-//
-
 # 🌌 Ephemeral – VisionOS Experience
 
 **Ephemeral** is a cutting-edge **VisionOS application** designed to showcase the limitless possibilities of **Apple Vision Pro**.
