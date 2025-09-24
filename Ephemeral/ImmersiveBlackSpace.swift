@@ -33,8 +33,10 @@ private struct ImmersiveStarField: View {
                         let x = star.position.x * size.width
                         let y = star.position.y * size.height
                         let rect = CGRect(x: x, y: y, width: star.size, height: star.size)
+
                         var alpha = 0.3 + 0.7 * sin(t * star.twinkleSpeed + star.phase)
                         alpha = max(0.08, min(1.0, alpha))
+
                         context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
                     }
                 }

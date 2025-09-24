@@ -10,6 +10,7 @@ import RealityKit
 import RealityKitContent
 
 struct ContentView: View {
+    // MARK: - Environment
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
 
@@ -19,66 +20,84 @@ struct ContentView: View {
     @State private var rotationY: Double = 0.0
     @State private var isSunny: Bool = true
     @State private var isDaytime: Bool = true
-    @State private var immersiveEnabled: Bool = true
+    @State private var immersiveEnabled: Bool = false  // Controls immersive background toggle
+
+    // RealityKit content and current loaded entity
+    @State private var realityContent: RealityViewContent?
+    @State private var currentEntity: Entity?
 
     var body: some View {
         ZStack {
-            // Optional background — uncomment if you want it
-            // SpaceBackground().ignoresSafeArea()
-            
-            Model3D(named:"lowpoly",bundle: realityKitContentBundle)
+            // 🌌 Immersive space background (starfield)
+            if immersiveEnabled {
+                ImmersiveBlackSpace()
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+            }
+
+            // 🌍 Main model view
             VStack(spacing: 40) {
-                // RealityKit view with proper update pattern
                 RealityView { content in
-                    // Initial load
-                    loadSceneDirectly(into: content)
-                } update: { content in
-                    // Update when state changes
-                    content.entities.removeAll()
+                    realityContent = content
                     loadSceneDirectly(into: content)
                 }
                 .frame(width: 400, height: 400)
-                .scaleEffect(zoom)
-                .rotation3DEffect(.degrees(rotationX), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
-                .rotation3DEffect(.degrees(rotationY), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
                 .shadow(color: isSunny ? Color.yellow.opacity(0.6) : .clear, radius: 25)
-                .animation(.easeInOut, value: zoom)
-                .animation(.easeInOut, value: rotationX)
-                .animation(.easeInOut, value: rotationY)
             }
         }
-        // Ornament (floating controls)
+        // Floating control panel
         .ornament(attachmentAnchor: .scene(.leading)) {
             controlPanel
         }
-        // Immersive space handlers
+
+        // Toggle immersive starfield when mountain icon is tapped
         .onChange(of: immersiveEnabled) { _, newValue in
             Task { @MainActor in
                 if newValue {
+                    // Enter immersive space
                     _ = await openImmersiveSpace(id: "Immersive")
                 } else {
+                    // Exit immersive space
                     await dismissImmersiveSpace()
                 }
             }
         }
         .task { @MainActor in
+            // Launch in non-immersive mode by default
             if immersiveEnabled {
                 _ = await openImmersiveSpace(id: "Immersive")
             }
         }
+
+        // Swap model when day/night toggle changes
+        .onChange(of: isDaytime) { _, _ in
+            guard let content = realityContent else { return }
+
+            if let entity = currentEntity {
+                entity.removeFromParent()
+            }
+            loadSceneDirectly(into: content)
+        }
+
+        // Update transforms dynamically when sliders move
+        .onChange(of: zoom) { _, _ in updateEntityTransform() }
+        .onChange(of: rotationX) { _, _ in updateEntityTransform() }
+        .onChange(of: rotationY) { _, _ in updateEntityTransform() }
     }
 
-    // MARK: - Control Panel View
+    // MARK: - Control Panel
     private var controlPanel: some View {
         VStack(spacing: 20) {
-            // Immersive Toggle
+            // Immersive Background Toggle
             Toggle(isOn: $immersiveEnabled) {
                 Image(systemName: "mountain.2.fill")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(immersiveEnabled ? .white : .gray)
-                    .accessibilityLabel("Immersive")
+                    .accessibilityLabel("Immersive Starfield")
             }
             .frame(width: 200)
+
+            Divider().padding(.vertical, 8)
 
             // Zoom
             VStack {
@@ -101,7 +120,7 @@ struct ContentView: View {
                     .frame(width: 200)
             }
 
-            // Sunny / Rainy
+            // Sunny / Rainy toggle
             HStack(spacing: 30) {
                 Button(action: { isSunny = true }) {
                     Image(systemName: "sun.max.fill")
@@ -118,7 +137,7 @@ struct ContentView: View {
             // Day / Night toggle
             HStack(spacing: 12) {
                 Image(systemName: "moon.stars.fill")
-                    .foregroundStyle(isDaytime ? .gray : .yellow)
+                    .foregroundStyle(!isDaytime ? .yellow : .gray)
                 Toggle("", isOn: $isDaytime)
                     .labelsHidden()
                     .toggleStyle(.switch)
@@ -134,39 +153,65 @@ struct ContentView: View {
         .shadow(radius: 10)
     }
 
-    // MARK: - Scene loading
+    // MARK: - Load Scene
     private func loadSceneDirectly(into content: RealityViewContent) {
         let sceneName = isDaytime ? "daytimeworld" : "nighttimeworld"
         print("🌍 Loading scene:", sceneName)
-        print("📦 Bundle:", realityKitContentBundle)
-        
+
         Task {
             do {
-                let entity = try await Entity(named: sceneName, in: realityKitContentBundle)
-                print("📏 Entity bounds:", entity.visualBounds(relativeTo: nil))
-                print("📍 Entity position:", entity.position)
-                print("📐 Entity scale:", entity.scale)
-                
-                // Adjust position and scale for better visibility
-                entity.position = [0, 0, -0.5] // Move back from camera
-                entity.scale = [1, 1, 1] // Try full size first
-                
-                // Add basic lighting
-                let light = DirectionalLight()
-                light.light.intensity = 1000
-                light.position = [0, 2, 1]
-                light.look(at: [0, 0, 0], from: light.position, relativeTo: nil)
-                
+                let modelEntity = try await Entity(named: sceneName, in: realityKitContentBundle)
+
                 await MainActor.run {
-                    content.add(entity)
+                    // Create a container to center the model
+                    let container = Entity()
+
+                    // Calculate the center pivot of the model
+                    let bounds = modelEntity.visualBounds(relativeTo: nil)
+                    let center = bounds.center
+                    modelEntity.position = -center // Ensure pivot is centered
+
+                    // Add model to container
+                    container.addChild(modelEntity)
+
+                    // Save and add container
+                    currentEntity = container
+                    content.add(container)
+
+                    // Basic directional light
+                    let light = DirectionalLight()
+                    light.light.intensity = 1000
+                    light.position = [0, 2, 1]
+                    light.look(at: [0, 0, 0], from: light.position, relativeTo: nil)
                     content.add(light)
-                    print("✅ Added to content. Total entities:", content.entities.count)
+
+                    print("✅ Added entity:", sceneName)
                 }
-                
             } catch {
                 print("❌ Error loading scene '\(sceneName)':", error.localizedDescription)
             }
         }
+    }
+
+    // MARK: - Update Transform
+    private func updateEntityTransform() {
+        guard let entity = currentEntity else { return }
+
+        // Apply zoom (scaling)
+        let zoomScale = Float(zoom)
+        entity.scale = [zoomScale, zoomScale, zoomScale]
+
+        // Convert degrees to radians
+        let rotationXRad = Float(rotationX * .pi / 180)
+        let rotationYRad = Float(rotationY * .pi / 180)
+
+        // Combine rotations
+        let rotation = simd_mul(
+            simd_quatf(angle: rotationXRad, axis: [1, 0, 0]),
+            simd_quatf(angle: rotationYRad, axis: [0, 1, 0])
+        )
+
+        entity.orientation = rotation
     }
 }
 
