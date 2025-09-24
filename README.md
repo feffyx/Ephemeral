@@ -18,7 +18,7 @@ Built on the **UI principles** we’ve researched and refined.
 ---
 
 ## 🚧 Status
-This project is currently in **development**, working on 3d models to integrate and understanding basics of coding for immersive experiences.
+This project is currently in **update**, working on adding more functionalities.
 
 ---
 
