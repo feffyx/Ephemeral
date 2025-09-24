@@ -25,7 +25,8 @@ struct ContentView: View {
         ZStack {
             // Optional background — uncomment if you want it
             // SpaceBackground().ignoresSafeArea()
-
+            
+            Model3D(named:"lowpoly",bundle: realityKitContentBundle)
             VStack(spacing: 40) {
                 // RealityKit view with proper update pattern
                 RealityView { content in
