@@ -150,13 +150,13 @@ struct ContentView: View {
         .padding()
         .background(.thinMaterial)
         .cornerRadius(25)
-        .shadow(radius: 10)
+        .shadow(radius: 50)
     }
 
     // MARK: - Load Scene
     private func loadSceneDirectly(into content: RealityViewContent) {
         let sceneName = isDaytime ? "daytimeworld" : "nighttimeworld"
-        print("🌍 Loading scene:", sceneName)
+        print("Loading scene:", sceneName)
 
         Task {
             do {
@@ -173,6 +173,9 @@ struct ContentView: View {
 
                     // Add model to container
                     container.addChild(modelEntity)
+                    
+                    // Position of the container
+                    container.position = [-0.1, 0, -0.1] // x, y, z
 
                     // Save and add container
                     currentEntity = container
@@ -185,10 +188,10 @@ struct ContentView: View {
                     light.look(at: [0, 0, 0], from: light.position, relativeTo: nil)
                     content.add(light)
 
-                    print("✅ Added entity:", sceneName)
+                    print("Added entity:", sceneName)
                 }
             } catch {
-                print("❌ Error loading scene '\(sceneName)':", error.localizedDescription)
+                print("Error loading scene '\(sceneName)':", error.localizedDescription)
             }
         }
     }
