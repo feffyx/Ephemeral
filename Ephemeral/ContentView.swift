@@ -18,9 +18,11 @@ struct ContentView: View {
     @State private var zoom: Double = 1.0
     @State private var rotationX: Double = 0.0
     @State private var rotationY: Double = 0.0
-    @State private var isSunny: Bool = true
-    @State private var isDaytime: Bool = true
-    @State private var immersiveEnabled: Bool = false  // Controls immersive background toggle
+
+    @State private var isSunny: Bool = true    // For sunny vs rainy
+    @State private var isDaytime: Bool = true  // For day vs night
+    @State private var immersiveEnabled: Bool = false  // Immersive background toggle
+    @State private var rainyWorldEnabled: Bool = false // Loads rainyworld if ON
 
     // RealityKit content and current loaded entity
     @State private var realityContent: RealityViewContent?
@@ -28,7 +30,7 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            // 🌌 Immersive space background (starfield)
+            // 🌌 Immersive space background
             if immersiveEnabled {
                 ImmersiveBlackSpace()
                     .ignoresSafeArea()
@@ -50,36 +52,27 @@ struct ContentView: View {
             controlPanel
         }
 
-        // Toggle immersive starfield when mountain icon is tapped
+        // Toggle immersive background
         .onChange(of: immersiveEnabled) { _, newValue in
             Task { @MainActor in
                 if newValue {
-                    // Enter immersive space
                     _ = await openImmersiveSpace(id: "Immersive")
                 } else {
-                    // Exit immersive space
                     await dismissImmersiveSpace()
                 }
             }
         }
         .task { @MainActor in
-            // Launch in non-immersive mode by default
             if immersiveEnabled {
                 _ = await openImmersiveSpace(id: "Immersive")
             }
         }
 
-        // Swap model when day/night toggle changes
-        .onChange(of: isDaytime) { _, _ in
-            guard let content = realityContent else { return }
+        // Reload model when day/night or rainy state changes
+        .onChange(of: isDaytime) { _, _ in reloadModel() }
+        .onChange(of: rainyWorldEnabled) { _, _ in reloadModel() }
 
-            if let entity = currentEntity {
-                entity.removeFromParent()
-            }
-            loadSceneDirectly(into: content)
-        }
-
-        // Update transforms dynamically when sliders move
+        // Update transforms dynamically
         .onChange(of: zoom) { _, _ in updateEntityTransform() }
         .onChange(of: rotationX) { _, _ in updateEntityTransform() }
         .onChange(of: rotationY) { _, _ in updateEntityTransform() }
@@ -87,7 +80,7 @@ struct ContentView: View {
 
     // MARK: - Control Panel
     private var controlPanel: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 25) {
             // Immersive Background Toggle
             Toggle(isOn: $immersiveEnabled) {
                 Image(systemName: "mountain.2.fill")
@@ -99,53 +92,65 @@ struct ContentView: View {
 
             Divider().padding(.vertical, 8)
 
-            // Zoom
-            VStack {
-                Text("Zoom").font(.headline)
+            // Zoom Slider
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Zoom")
+                    .font(.headline)
                 Slider(value: $zoom, in: 0.5...2.0)
                     .frame(width: 200)
             }
 
-            // Rotate X
-            VStack {
-                Text("Rotate X").font(.headline)
+            // Rotate X Slider
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Rotate X")
+                    .font(.headline)
                 Slider(value: $rotationX, in: -180...180)
                     .frame(width: 200)
             }
 
-            // Rotate Y
-            VStack {
-                Text("Rotate Y").font(.headline)
+            // Rotate Y Slider
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Rotate Y")
+                    .font(.headline)
                 Slider(value: $rotationY, in: -180...180)
                     .frame(width: 200)
             }
 
-            // Sunny / Rainy toggle
+            Divider().padding(.vertical, 8)
+
+            // Day / Night Buttons
             HStack(spacing: 30) {
-                Button(action: { isSunny = true }) {
+                Button(action: {
+                    isDaytime = true
+                    reloadModel()
+                }) {
                     Image(systemName: "sun.max.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(isSunny ? .yellow : .gray)
+                        .font(.system(size: 32))
+                        .foregroundColor(isDaytime ? .yellow : .gray)
                 }
-                Button(action: { isSunny = false }) {
-                    Image(systemName: "cloud.rain.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(!isSunny ? .blue : .gray)
+
+                Button(action: {
+                    isDaytime = false
+                    reloadModel()
+                }) {
+                    Image(systemName: "moon.stars.fill")
+                        .font(.system(size: 32))
+                        .foregroundColor(!isDaytime ? .yellow : .gray)
                 }
             }
 
-            // Day / Night toggle
+            // Rain Toggle (icon on the left)
             HStack(spacing: 12) {
-                Image(systemName: "moon.stars.fill")
-                    .foregroundStyle(!isDaytime ? .yellow : .gray)
-                Toggle("", isOn: $isDaytime)
+                Image(systemName: "cloud.rain.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(rainyWorldEnabled ? .blue : .gray)
+
+                Toggle("", isOn: $rainyWorldEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .accessibilityLabel("Day or Night")
-                Image(systemName: "sun.max.fill")
-                    .foregroundStyle(isDaytime ? .yellow : .gray)
+                    .accessibilityLabel("Rainy World")
             }
-            .frame(width: 220)
+            .frame(width: 180, alignment: .leading)
         }
         .padding()
         .background(.thinMaterial)
@@ -153,9 +158,29 @@ struct ContentView: View {
         .shadow(radius: 50)
     }
 
+    // MARK: - Reload Model Logic
+    private func reloadModel() {
+        guard let content = realityContent else { return }
+
+        // Remove current model
+        if let entity = currentEntity {
+            entity.removeFromParent()
+        }
+
+        // Load new model
+        loadSceneDirectly(into: content)
+    }
+
     // MARK: - Load Scene
     private func loadSceneDirectly(into content: RealityViewContent) {
-        let sceneName = isDaytime ? "daytimeworld" : "nighttimeworld"
+        // Decide which model to load
+        let sceneName: String
+        if rainyWorldEnabled {
+            sceneName = "rainyworld"
+        } else {
+            sceneName = isDaytime ? "daytimeworld" : "nighttimeworld"
+        }
+
         print("Loading scene:", sceneName)
 
         Task {
@@ -163,25 +188,24 @@ struct ContentView: View {
                 let modelEntity = try await Entity(named: sceneName, in: realityKitContentBundle)
 
                 await MainActor.run {
-                    // Create a container to center the model
                     let container = Entity()
 
-                    // Calculate the center pivot of the model
+                    // Center model pivot
                     let bounds = modelEntity.visualBounds(relativeTo: nil)
                     let center = bounds.center
-                    modelEntity.position = -center // Ensure pivot is centered
+                    modelEntity.position = -center
 
                     // Add model to container
                     container.addChild(modelEntity)
-                    
-                    // Position of the container
+
+                    // Adjust container position
                     container.position = [-0.1, 0, -0.1] // x, y, z
 
-                    // Save and add container
+                    // Save reference and add to RealityView
                     currentEntity = container
                     content.add(container)
 
-                    // Basic directional light
+                    // Lighting
                     let light = DirectionalLight()
                     light.light.intensity = 1000
                     light.position = [0, 2, 1]
@@ -200,15 +224,15 @@ struct ContentView: View {
     private func updateEntityTransform() {
         guard let entity = currentEntity else { return }
 
-        // Apply zoom (scaling)
+        // Apply zoom
         let zoomScale = Float(zoom)
         entity.scale = [zoomScale, zoomScale, zoomScale]
 
-        // Convert degrees to radians
+        // Degrees → radians
         let rotationXRad = Float(rotationX * .pi / 180)
         let rotationYRad = Float(rotationY * .pi / 180)
 
-        // Combine rotations
+        // Combine X & Y rotations
         let rotation = simd_mul(
             simd_quatf(angle: rotationXRad, axis: [1, 0, 0]),
             simd_quatf(angle: rotationYRad, axis: [0, 1, 0])
