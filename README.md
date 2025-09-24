@@ -18,7 +18,7 @@ Built on the **UI principles** we’ve researched and refined.
 ---
 
 ## 🚧 Status
-This project is currently in **update**, working on adding more functionalities and improving the UI.
+This project is constantly being **updated**, working on adding more functionalities and improving the UI.
 
 ---
 
