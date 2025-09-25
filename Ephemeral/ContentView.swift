@@ -19,18 +19,20 @@ struct ContentView: View {
     @State private var rotationX: Double = 0.0
     @State private var rotationY: Double = 0.0
 
-    @State private var isSunny: Bool = true    // For sunny vs rainy
-    @State private var isDaytime: Bool = true  // For day vs night
-    @State private var immersiveEnabled: Bool = false  // Immersive background toggle
-    @State private var rainyWorldEnabled: Bool = false // Loads rainyworld if ON
+    @State private var isDaytime: Bool = true       // Day vs night toggle
+    @State private var immersiveEnabled: Bool = false // Immersive background toggle
+    @State private var rainyWorldEnabled: Bool = false // Rainy world toggle
 
     // RealityKit content and current loaded entity
     @State private var realityContent: RealityViewContent?
     @State private var currentEntity: Entity?
 
+    // To prevent overlap if loads happen too quickly
+    @State private var loadCounter: Int = 0
+
     var body: some View {
         ZStack {
-            // 🌌 Immersive space background
+            // Immersive space background
             if immersiveEnabled {
                 ImmersiveBlackSpace()
                     .ignoresSafeArea()
@@ -44,7 +46,6 @@ struct ContentView: View {
                     loadSceneDirectly(into: content)
                 }
                 .frame(width: 400, height: 400)
-                .shadow(color: isSunny ? Color.yellow.opacity(0.6) : .clear, radius: 25)
             }
         }
         // Floating control panel
@@ -68,7 +69,7 @@ struct ContentView: View {
             }
         }
 
-        // Reload model when day/night or rainy state changes
+        // Reload model when any relevant state changes
         .onChange(of: isDaytime) { _, _ in reloadModel() }
         .onChange(of: rainyWorldEnabled) { _, _ in reloadModel() }
 
@@ -162,21 +163,26 @@ struct ContentView: View {
     private func reloadModel() {
         guard let content = realityContent else { return }
 
-        // Remove current model
+        // Remove current model immediately
         if let entity = currentEntity {
             entity.removeFromParent()
+            currentEntity = nil
         }
 
-        // Load new model
+        // Increment load counter to invalidate any previous async loads
+        loadCounter += 1
         loadSceneDirectly(into: content)
     }
 
     // MARK: - Load Scene
     private func loadSceneDirectly(into content: RealityViewContent) {
+        // Capture the current load ID
+        let currentLoadID = loadCounter
+
         // Decide which model to load
         let sceneName: String
         if rainyWorldEnabled {
-            sceneName = "rainyworld"
+            sceneName = isDaytime ? "rainyworld" : "rainyworldnight"
         } else {
             sceneName = isDaytime ? "daytimeworld" : "nighttimeworld"
         }
@@ -188,6 +194,15 @@ struct ContentView: View {
                 let modelEntity = try await Entity(named: sceneName, in: realityKitContentBundle)
 
                 await MainActor.run {
+                    // Ignore if another load started in the meantime
+                    guard currentLoadID == loadCounter else { return }
+
+                    // Clear any remaining entities
+                    if let entity = currentEntity {
+                        entity.removeFromParent()
+                    }
+
+                    // Create container
                     let container = Entity()
 
                     // Center model pivot
@@ -201,7 +216,7 @@ struct ContentView: View {
                     // Adjust container position
                     container.position = [-0.1, 0, -0.1] // x, y, z
 
-                    // Save reference and add to RealityView
+                    // Save reference & add to RealityView
                     currentEntity = container
                     content.add(container)
 
@@ -211,6 +226,9 @@ struct ContentView: View {
                     light.position = [0, 2, 1]
                     light.look(at: [0, 0, 0], from: light.position, relativeTo: nil)
                     content.add(light)
+
+                    // 🔹 Apply current zoom & rotation to new model immediately
+                    updateEntityTransform()
 
                     print("Added entity:", sceneName)
                 }
@@ -224,11 +242,11 @@ struct ContentView: View {
     private func updateEntityTransform() {
         guard let entity = currentEntity else { return }
 
-        // Apply zoom
+        // Apply zoom (scale)
         let zoomScale = Float(zoom)
         entity.scale = [zoomScale, zoomScale, zoomScale]
 
-        // Degrees → radians
+        // Convert degrees → radians
         let rotationXRad = Float(rotationX * .pi / 180)
         let rotationYRad = Float(rotationY * .pi / 180)
 
